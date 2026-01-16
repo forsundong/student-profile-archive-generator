@@ -38,7 +38,6 @@
                 border-radius: 0 !important;
             }
         }
-        /* 自定义滚动条 */
         .custom-scrollbar::-webkit-scrollbar {
             width: 5px;
         }
@@ -52,12 +51,11 @@
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: #cbd5e1;
         }
-        
         #export-container {
             position: absolute;
             left: -9999px;
             top: -9999px;
-            width: 840px; /* 对应 A4 缩放后的宽度 */
+            width: 840px;
         }
     </style>
 <script type="importmap">
@@ -79,6 +77,7 @@
 <body>
     <div id="root"></div>
     <div id="export-container"></div>
-    <script type="module" src="/index.tsx"></script>
+    <script type="module" src="index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
 </body>
 </html>

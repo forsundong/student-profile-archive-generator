@@ -1,6 +1,5 @@
-
-import React, { useState } from 'react';
-import { FileUp, Printer, Users, UserCircle, Search, Trash2, FileText, LayoutGrid, Download, Loader2, Sparkles, Type, Settings2, UserRoundPen } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { FileUp, Clipboard, Check, Users, UserCircle, Search, Trash2, FileText, LayoutGrid, Download, Loader2, Sparkles, Type, Settings2, UserRoundPen, Copy } from 'lucide-react';
 import { StudentRawData } from './types';
 import ArchiveTemplate from './components/ArchiveTemplate';
 import JSZip from 'jszip';
@@ -12,9 +11,12 @@ const App: React.FC = () => {
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [titlePrefix, setTitlePrefix] = useState(''); 
-  const [customNames, setCustomNames] = useState<Record<string, string>>({}); // 存储学员真实姓名映射
+  const [customNames, setCustomNames] = useState<Record<string, string>>({}); 
   const [isExporting, setIsExporting] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const archiveRef = useRef<HTMLDivElement>(null);
 
   const parseCSVLine = (line: string): string[] => {
     const result: string[] = [];
@@ -46,7 +48,16 @@ const App: React.FC = () => {
 
     const reader = new FileReader();
     reader.onload = (e) => {
-      const text = e.target?.result as string;
+      const buffer = e.target?.result as ArrayBuffer;
+      
+      // 尝试使用 UTF-8 解码
+      let text = new TextDecoder('utf-8').decode(buffer);
+      
+      // 如果解码结果中包含无效字符标识（），说明可能是 GBK 编码（中文 Excel 默认）
+      if (text.includes('')) {
+        text = new TextDecoder('gbk').decode(buffer);
+      }
+
       const lines: string[] = [];
       let currentLine = '';
       let inQuote = false;
@@ -64,7 +75,6 @@ const App: React.FC = () => {
       if (currentLine.trim()) lines.push(currentLine);
 
       const rows = lines.slice(1);
-      
       const parsedData: StudentRawData[] = rows.map(row => {
         const cols = parseCSVLine(row);
         return {
@@ -83,16 +93,48 @@ const App: React.FC = () => {
       });
 
       setStudents(prev => [...prev, ...parsedData]);
-      if (parsedData.length > 0 && selectedIdx === null) {
-        setSelectedIdx(0);
-      }
+      if (parsedData.length > 0 && selectedIdx === null) setSelectedIdx(0);
     };
-    reader.readAsText(file);
+    
+    // 使用 ArrayBuffer 读取以支持灵活的解码
+    reader.readAsArrayBuffer(file);
     event.target.value = '';
   };
 
   const handleCustomNameChange = (userId: string, name: string) => {
     setCustomNames(prev => ({ ...prev, [userId]: name }));
+  };
+
+  const copyToClipboard = async () => {
+    if (!archiveRef.current || isCopying) return;
+    
+    setIsCopying(true);
+    try {
+      const canvas = await html2canvas(archiveRef.current, {
+        scale: 2.5,
+        useCORS: true,
+        backgroundColor: '#FFFFFF',
+        logging: false,
+      });
+
+      canvas.toBlob(async (blob) => {
+        if (blob) {
+          try {
+            const data = [new ClipboardItem({ 'image/png': blob })];
+            await navigator.clipboard.write(data);
+            setCopySuccess(true);
+            setTimeout(() => setCopySuccess(false), 2000);
+          } catch (err) {
+            console.error('Clipboard Error:', err);
+            alert('复制失败：请确保使用 HTTPS 环境或检查浏览器权限');
+          }
+        }
+      }, 'image/png', 1.0);
+    } catch (error) {
+      console.error('Capture Error:', error);
+    } finally {
+      setIsCopying(false);
+    }
   };
 
   const batchExport = async () => {
@@ -135,9 +177,6 @@ const App: React.FC = () => {
       link.href = URL.createObjectURL(content);
       link.download = `学员档案合集_${new Date().getTime()}.zip`;
       link.click();
-    } catch (error) {
-      console.error('Export Error:', error);
-      alert('导出失败，请重试');
     } finally {
       setIsExporting(false);
       tempRoot.unmount();
@@ -153,7 +192,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#F1F3F9]">
-      {/* 导出遮罩 */}
       {isExporting && (
         <div className="fixed inset-0 z-[100] bg-indigo-950/90 backdrop-blur-xl flex flex-col items-center justify-center text-white p-6 text-center">
           <div className="bg-white p-12 rounded-[56px] flex flex-col items-center max-w-md w-full shadow-2xl">
@@ -171,7 +209,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Sidebar */}
       <aside className="w-full md:w-80 bg-white border-r border-slate-100 flex flex-col no-print z-20 shadow-xl overflow-hidden">
         <div className="p-8 border-b border-slate-50 bg-slate-50/50">
           <div className="flex items-center gap-3 mb-2">
@@ -180,16 +217,14 @@ const App: React.FC = () => {
             </div>
             <h1 className="text-xl font-black text-slate-900 tracking-tight">Archive Pro</h1>
           </div>
-          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">教育信息化助手 v2.2</p>
+          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">教育信息化助手 v3.0</p>
         </div>
 
         <div className="p-6 space-y-6 flex-1 flex flex-col overflow-hidden">
-          {/* 核心配置区域 */}
           <div className="bg-indigo-50/40 p-5 rounded-[32px] border border-indigo-100/50 space-y-5 shadow-inner">
             <div className="flex items-center gap-2 text-indigo-600 font-black text-xs uppercase tracking-widest">
               <Settings2 size={16} /> 编辑预览参数
             </div>
-            
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
                 <Type size={12} /> 档案标题前缀
@@ -202,7 +237,6 @@ const App: React.FC = () => {
                 onChange={(e) => setTitlePrefix(e.target.value)}
               />
             </div>
-
             {selectedIdx !== null && students[selectedIdx] && (
               <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
@@ -276,7 +310,6 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main Preview */}
       <main className="flex-1 overflow-y-auto p-6 md:p-12 flex flex-col items-center">
         {selectedIdx !== null && students[selectedIdx] ? (
           <div className="w-full max-w-[840px]">
@@ -286,30 +319,41 @@ const App: React.FC = () => {
                   <Sparkles size={24} className="text-amber-400" />
                 </div>
                 <div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">预览生成</h2>
-                  <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em] mt-0.5">档案已准备就绪</p>
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">档案预览</h2>
+                  <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em] mt-0.5">点击右侧按钮复制图片</p>
                 </div>
               </div>
               <div className="flex gap-4">
                 <button 
                   onClick={batchExport}
                   disabled={isExporting}
-                  className="flex items-center gap-2 bg-slate-900 text-white px-8 py-4 rounded-2xl hover:bg-slate-800 transition-all text-sm font-black shadow-xl shadow-slate-200 group disabled:opacity-50"
+                  className="flex items-center gap-2 bg-slate-100 text-slate-600 px-6 py-4 rounded-2xl hover:bg-slate-200 transition-all text-sm font-black disabled:opacity-50"
                 >
-                  <Download size={20} className="group-hover:translate-y-0.5 transition-transform" />
+                  <Download size={18} />
                   打包合集 ({students.length})
                 </button>
                 <button 
-                  onClick={() => window.print()}
-                  className="flex items-center gap-2 bg-white border-2 border-slate-100 text-slate-700 px-8 py-4 rounded-2xl hover:bg-slate-50 transition-all text-sm font-black shadow-sm group"
+                  onClick={copyToClipboard}
+                  disabled={isCopying}
+                  className={`flex items-center gap-2 px-8 py-4 rounded-2xl transition-all text-sm font-black shadow-xl group disabled:opacity-70 ${
+                    copySuccess 
+                    ? 'bg-emerald-500 text-white shadow-emerald-200 scale-95' 
+                    : 'bg-slate-900 text-white shadow-slate-200 hover:bg-slate-800'
+                  }`}
                 >
-                  <Printer size={20} className="group-hover:scale-110 transition-transform text-indigo-600" />
-                  打印预览
+                  {isCopying ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : copySuccess ? (
+                    <Check size={20} className="animate-in zoom-in" />
+                  ) : (
+                    <Copy size={20} className="group-hover:scale-110 transition-transform" />
+                  )}
+                  {copySuccess ? '已成功复制' : isCopying ? '正在处理...' : '一键复制图片'}
                 </button>
               </div>
             </div>
             
-            <div className="print-area animate-in slide-in-from-bottom-8 duration-700 fade-in">
+            <div className="print-area animate-in slide-in-from-bottom-8 duration-700 fade-in" ref={archiveRef}>
               <ArchiveTemplate 
                 data={students[selectedIdx]} 
                 titlePrefix={titlePrefix} 
@@ -325,7 +369,7 @@ const App: React.FC = () => {
               </div>
               <h3 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">档案系统就绪</h3>
               <p className="text-slate-400 text-sm font-bold leading-relaxed mb-10">
-                请先上传 CSV 表格，然后在左侧选择学员。您可以为每个学员设置真实姓名以便展示。
+                请先上传 CSV 表格，然后在左侧选择学员。您可以点击“一键复制图片”将档案截图发送给家长。
               </p>
             </div>
           </div>

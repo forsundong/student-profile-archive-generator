@@ -1,16 +1,19 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>学员信息档案生成器 | EduArchive</title>
+    <title>学员信息档案生成器 | EduArchive Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Noto+Serif+SC:wght@400;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --print-width: 210mm;
+            --print-height: 297mm;
+        }
         body {
             font-family: 'Inter', 'Noto Sans SC', sans-serif;
-            background-color: #F1F3F6;
+            background-color: #F8FAFC;
             -webkit-font-smoothing: antialiased;
         }
         .italic-chinese {
@@ -21,6 +24,9 @@
                 size: A4;
                 margin: 0;
             }
+            body {
+                background: white;
+            }
             .no-print {
                 display: none !important;
             }
@@ -29,30 +35,29 @@
                 margin: 0 !important;
                 padding: 0 !important;
                 box-shadow: none !important;
-            }
-            body {
-                background: white;
+                border-radius: 0 !important;
             }
         }
+        /* 自定义滚动条 */
         .custom-scrollbar::-webkit-scrollbar {
-            width: 4px;
+            width: 5px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-            background: transparent;
+            background: #f1f1f1;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #E2E8F0;
+            background: #e2e8f0;
             border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #CBD5E1;
+            background: #cbd5e1;
         }
         
         #export-container {
             position: absolute;
             left: -9999px;
             top: -9999px;
-            width: 840px;
+            width: 840px; /* 对应 A4 缩放后的宽度 */
         }
     </style>
 <script type="importmap">
@@ -69,11 +74,11 @@
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
 </head>
 <body>
     <div id="root"></div>
     <div id="export-container"></div>
-    <!-- Vite 将会自动处理这个入口文件 -->
     <script type="module" src="/index.tsx"></script>
 </body>
 </html>

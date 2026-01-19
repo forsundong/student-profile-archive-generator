@@ -5,6 +5,7 @@ import ArchiveTemplate from './components/ArchiveTemplate';
 import JSZip from 'jszip';
 import html2canvas from 'html2canvas';
 import ReactDOM from 'react-dom/client';
+import * as XLSX from 'xlsx';
 
 const App: React.FC = () => {
   const [students, setStudents] = useState<StudentRawData[]>([]);
@@ -18,77 +19,36 @@ const App: React.FC = () => {
   const [exportProgress, setExportProgress] = useState(0);
   const archiveRef = useRef<HTMLDivElement>(null);
 
-  const parseCSVLine = (line: string): string[] => {
-    const result: string[] = [];
-    let cur = '';
-    let inQuote = false;
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        if (inQuote && line[i + 1] === '"') {
-          cur += '"';
-          i++;
-        } else {
-          inQuote = !inQuote;
-        }
-      } else if (char === ',' && !inQuote) {
-        result.push(cur.trim());
-        cur = '';
-      } else {
-        cur += char;
-      }
-    }
-    result.push(cur.trim());
-    return result.map(v => v.replace(/^"|"$/g, ''));
-  };
-
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (e) => {
-      const buffer = e.target?.result as ArrayBuffer;
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
       
-      // 尝试使用 UTF-8 解码
-      let text = new TextDecoder('utf-8').decode(buffer);
+      // 获取第一个工作表
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
       
-      // 如果解码结果中包含无效字符标识（），说明可能是 GBK 编码（中文 Excel 默认）
-      if (text.includes('')) {
-        text = new TextDecoder('gbk').decode(buffer);
-      }
-
-      const lines: string[] = [];
-      let currentLine = '';
-      let inQuote = false;
-      for (let i = 0; i < text.length; i++) {
-        const char = text[i];
-        if (char === '"') inQuote = !inQuote;
-        if ((char === '\n' || char === '\r') && !inQuote) {
-          if (currentLine.trim()) lines.push(currentLine);
-          currentLine = '';
-          if (char === '\r' && text[i+1] === '\n') i++;
-        } else {
-          currentLine += char;
-        }
-      }
-      if (currentLine.trim()) lines.push(currentLine);
-
-      const rows = lines.slice(1);
-      const parsedData: StudentRawData[] = rows.map(row => {
-        const cols = parseCSVLine(row);
+      // 将工作表转换为二维数组 (header: 1 表示返回原始数组，方便按索引操作)
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+      
+      // 过滤掉第一行表头，并映射数据
+      const parsedData: StudentRawData[] = jsonData.slice(1).filter(row => row.length > 0).map(row => {
         return {
-          userId: cols[0] || '',
-          coreNeeds: cols[1] || '',
-          suggestions: cols[2] || '',
-          impression: cols[3] || '',
-          mathFoundation: cols[4] || '',
-          learningStatus: cols[5] || '',
-          supervisor: cols[6] || '',
-          desiredGains: cols[7] || '',
-          extracurricular: cols[8] || '',
-          timeInvestment: cols[9] || '',
-          classTeacher: cols[10] || '',
+          userId: String(row[0] || ''),
+          coreNeeds: String(row[1] || ''),
+          suggestions: String(row[2] || ''),
+          impression: String(row[3] || ''),
+          mathFoundation: String(row[4] || ''),
+          learningStatus: String(row[5] || ''),
+          supervisor: String(row[6] || ''),
+          desiredGains: String(row[7] || ''),
+          extracurricular: String(row[8] || ''),
+          timeInvestment: String(row[9] || ''),
+          classTeacher: String(row[10] || ''),
         };
       });
 
@@ -96,7 +56,6 @@ const App: React.FC = () => {
       if (parsedData.length > 0 && selectedIdx === null) setSelectedIdx(0);
     };
     
-    // 使用 ArrayBuffer 读取以支持灵活的解码
     reader.readAsArrayBuffer(file);
     event.target.value = '';
   };
@@ -256,8 +215,8 @@ const App: React.FC = () => {
           <div className="flex flex-col gap-3">
             <label className="cursor-pointer bg-slate-900 hover:bg-slate-800 text-white px-4 py-4 rounded-[24px] flex items-center justify-center gap-2 transition-all font-black text-sm shadow-xl shadow-slate-200 group">
               <FileUp size={18} className="group-hover:scale-110 transition-transform" />
-              上传学员 CSV 表
-              <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+              上传学员 Excel 表
+              <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleFileUpload} />
             </label>
             <button 
               onClick={() => { if(confirm('确定清空所有数据？')) { setStudents([]); setSelectedIdx(null); setCustomNames({}); }}}
@@ -369,7 +328,7 @@ const App: React.FC = () => {
               </div>
               <h3 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">档案系统就绪</h3>
               <p className="text-slate-400 text-sm font-bold leading-relaxed mb-10">
-                请先上传 CSV 表格，然后在左侧选择学员。您可以点击“一键复制图片”将档案截图发送给家长。
+                请先上传 Excel 表格，然后在左侧选择学员。您可以点击“一键复制图片”将档案截图发送给家长。
               </p>
             </div>
           </div>
